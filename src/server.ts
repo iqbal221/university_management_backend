@@ -1,18 +1,49 @@
+import { Server } from 'http'
 import mongoose from 'mongoose'
 import app from './app'
 import config from './config'
+import { errorlogger, logger } from './shared/logger'
+
+
+process.on('uncaughtException',error =>{
+   errorlogger.error(error)
+    process.exit(1)
+})
+
+  let server:Server;
 
 async function main() {
+
   try {
     await mongoose.connect(config.database_url as string)
-    console.log(`Database connected successfully`)
+    logger.info(`Database connected successfully`)
 
-    app.listen(config.port, () => {
-      console.log(`Application is running on port ${config.port}`)
+    server = app.listen(config.port, () => {
+      logger.info(`Application is running on port ${config.port}`)
     })
   } catch (error) {
-    console.log('Fail to connect to Database')
+    errorlogger.error('Fail to connect to Database')
   }
+
+  process.on('unhandledRejection',error =>{
+    console.log('Unhandled rejection is detected, we are closing our server.....')
+    if(server){
+      server.close(()=>{
+        errorlogger.error(error)
+        process.exit(1)
+      })
+    }else{
+      process.exit(1)
+    }
+  })
 }
 
 main()
+
+
+process.on('SIGTERM',()=>{
+  logger.info('SIGTERM is received')
+  if(server){
+    server.close()
+  }
+})
